@@ -8,6 +8,7 @@ use crate::{
     precompiles::{
         ecrecover::ECRecoverPrecompile, keccak256::Keccak256Precompile,
         secp256r1_verify::Secp256r1VerifyPrecompile, sha256::Sha256Precompile,
+        ecadd::ECAddPrecompile, ecrecover::ECRecoverPrecompile, keccak256::Keccak256Precompile, sha256::Sha256Precompile
     },
     queries::{DecommittmentQuery, LogQuery, MemoryQuery},
 };
@@ -59,6 +60,7 @@ pub enum PrecompileCyclesWitness {
     Keccak256(Vec<<Keccak256Precompile<true> as Precompile>::CycleWitness>),
     ECRecover(Vec<<ECRecoverPrecompile<true> as Precompile>::CycleWitness>),
     Secp256r1Verify(Vec<<Secp256r1VerifyPrecompile<true> as Precompile>::CycleWitness>),
+    ECAdd(Vec<<ECAddPrecompile<true> as Precompile>::CycleWitness>)
 }
 
 // ALL traits here are for execution and NOT for witness generation. They can depend on one another, but should

@@ -1,0 +1,291 @@
+use std::str::FromStr;
+
+use anyhow::{Error, Result};
+use zkevm_opcode_defs::bn254::bn256::{Fq, G1Affine};
+use zkevm_opcode_defs::bn254::ff::PrimeField;
+use zkevm_opcode_defs::bn254::{CurveAffine, CurveProjective};
+pub use zkevm_opcode_defs::sha2::Digest;
+use zkevm_opcode_defs::ethereum_types::U256;
+
+use super::*;
+
+// NOTE: We need x1, y1, x2, y2: four coordinates of two points
+pub const MEMORY_READS_PER_CYCLE: usize = 4;
+// NOTE: We need to specify the result of the addition and the status of the operation
+pub const MEMORY_WRITES_PER_CYCLE: usize = 3;
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ECAddRoundWitness {
+    pub new_request: LogQuery,
+    pub reads: [MemoryQuery; MEMORY_READS_PER_CYCLE],
+    pub writes: [MemoryQuery; MEMORY_WRITES_PER_CYCLE],
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ECAddPrecompile<const B: bool>;
+
+impl<const B: bool> Precompile for ECAddPrecompile<B> {
+    type CycleWitness = ECAddRoundWitness;
+
+    fn execute_precompile<M: Memory>(
+        &mut self,
+        monotonic_cycle_counter: u32,
+        query: LogQuery,
+        memory: &mut M,
+    ) -> (
+        usize,
+        Option<(Vec<MemoryQuery>, Vec<MemoryQuery>, Vec<Self::CycleWitness>)>,
+    ) {
+        const NUM_ROUNDS: usize = 1;
+
+        // read the parameters
+        let precompile_call_params = query;
+        let params = precompile_abi_in_log(precompile_call_params);
+        let timestamp_to_read = precompile_call_params.timestamp;
+        let timestamp_to_write = Timestamp(timestamp_to_read.0 + 1); // our default timestamping agreement
+
+        let mut current_read_location = MemoryLocation {
+            memory_type: MemoryType::Heap, // we default for some value, here it's not that important
+            page: MemoryPage(params.memory_page_to_read),
+            index: MemoryIndex(params.input_memory_offset),
+        };
+
+        // we assume that we have
+        // - x1 as U256 as a first coordinate of the first point (32 bytes)
+        // - y1 as U256 as a second coordinate of the first point (32 bytes)
+        // - x2 as U256 as a first coordinate of the second point (32 bytes)
+        // - y2 as U256 as a second coordinate of the second point (32 bytes)
+
+        // we do 6 queries per precompile
+        let mut read_history = if B {
+            Vec::with_capacity(MEMORY_READS_PER_CYCLE)
+        } else {
+            vec![]
+        };
+        let mut write_history = if B {
+            Vec::with_capacity(MEMORY_WRITES_PER_CYCLE)
+        } else {
+            vec![]
+        };
+
+        let mut round_witness = ECAddRoundWitness {
+            new_request: precompile_call_params,
+            reads: [MemoryQuery::empty(); MEMORY_READS_PER_CYCLE],
+            writes: [MemoryQuery::empty(); MEMORY_WRITES_PER_CYCLE],
+        };
+
+        let mut read_idx = 0;
+
+        let x1_query = MemoryQuery {
+            timestamp: timestamp_to_read,
+            location: current_read_location,
+            value: U256::zero(),
+            value_is_pointer: false,
+            rw_flag: false,
+        };
+        let x1_query = memory.execute_partial_query(monotonic_cycle_counter, x1_query);
+        let x1_value = x1_query.value;
+        if B {
+            round_witness.reads[read_idx] = x1_query;
+            read_idx += 1;
+            read_history.push(x1_query);
+        }
+
+        current_read_location.index.0 += 1;
+        let y1_query = MemoryQuery {
+            timestamp: timestamp_to_read,
+            location: current_read_location,
+            value: U256::zero(),
+            value_is_pointer: false,
+            rw_flag: false,
+        };
+        let y1_query = memory.execute_partial_query(monotonic_cycle_counter, y1_query);
+        let y1_value = y1_query.value;
+        if B {
+            round_witness.reads[read_idx] = y1_query;
+            read_idx += 1;
+            read_history.push(y1_query);
+        }
+
+        current_read_location.index.0 += 1;
+        let x2_query = MemoryQuery {
+            timestamp: timestamp_to_read,
+            location: current_read_location,
+            value: U256::zero(),
+            value_is_pointer: false,
+            rw_flag: false,
+        };
+        let x2_query = memory.execute_partial_query(monotonic_cycle_counter, x2_query);
+        let x2_value = x2_query.value;
+        if B {
+            round_witness.reads[read_idx] = x2_query;
+            read_idx += 1;
+            read_history.push(x2_query);
+        }
+
+        current_read_location.index.0 += 1;
+        let y2_query = MemoryQuery {
+            timestamp: timestamp_to_read,
+            location: current_read_location,
+            value: U256::zero(),
+            value_is_pointer: false,
+            rw_flag: false,
+        };
+        let y2_query = memory.execute_partial_query(monotonic_cycle_counter, y2_query);
+        let y2_value = y2_query.value;
+        if B {
+            round_witness.reads[read_idx] = y2_query;
+            read_history.push(y2_query);
+        }
+
+        // Performing addition
+        let points_sum: std::prelude::v1::Result<G1Affine, Error> = ecadd_inner((x1_value, y1_value), (x2_value, y2_value));
+
+        if let Ok(sum) = points_sum {
+            let mut write_location = MemoryLocation {
+                memory_type: MemoryType::Heap, // we default for some value, here it's not that important
+                page: MemoryPage(params.memory_page_to_write),
+                index: MemoryIndex(params.output_memory_offset),
+            };
+
+            // Marking that the operation was successful
+            let ok_marker = U256::one();
+            let ok_or_err_query = MemoryQuery {
+                timestamp: timestamp_to_write,
+                location: write_location,
+                value: ok_marker,
+                value_is_pointer: false,
+                rw_flag: true,
+            };
+            let ok_or_err_query =
+                memory.execute_partial_query(monotonic_cycle_counter, ok_or_err_query);
+
+            // Converting resultant (x, y) into U256 format
+            let (x, y) = sum.into_xy_unchecked();
+            let x = U256::from_str(format!("{}", x.into_repr()).as_str()).unwrap();
+            let y = U256::from_str(format!("{}", y.into_repr()).as_str()).unwrap();
+
+            // Writing resultant x coordinate
+            write_location.index.0 += 1;
+            
+            let result_query = MemoryQuery {
+                timestamp: timestamp_to_write,
+                location: write_location,
+                value: x,
+                value_is_pointer: false,
+                rw_flag: true,
+            };
+            let result_query = memory.execute_partial_query(monotonic_cycle_counter, result_query);
+
+            if B {
+                round_witness.writes[0] = ok_or_err_query;
+                round_witness.writes[1] = result_query;
+                write_history.push(ok_or_err_query);
+                write_history.push(result_query);
+            }
+
+            // Writing resultant y coordinate
+            write_location.index.0 += 1;
+            
+            let result_query = MemoryQuery {
+                timestamp: timestamp_to_write,
+                location: write_location,
+                value: y,
+                value_is_pointer: false,
+                rw_flag: true,
+            };
+            let result_query = memory.execute_partial_query(monotonic_cycle_counter, result_query);
+
+            if B {
+                round_witness.writes[0] = ok_or_err_query;
+                round_witness.writes[1] = result_query;
+                write_history.push(ok_or_err_query);
+                write_history.push(result_query);
+            }
+        } else {
+            let mut write_location = MemoryLocation {
+                memory_type: MemoryType::Heap, // we default for some value, here it's not that important
+                page: MemoryPage(params.memory_page_to_write),
+                index: MemoryIndex(params.output_memory_offset),
+            };
+
+            let err_marker = U256::zero();
+            let ok_or_err_query = MemoryQuery {
+                timestamp: timestamp_to_write,
+                location: write_location,
+                value: err_marker,
+                value_is_pointer: false,
+                rw_flag: true,
+            };
+            let ok_or_err_query =
+                memory.execute_partial_query(monotonic_cycle_counter, ok_or_err_query);
+
+            write_location.index.0 += 1;
+            let empty_result = U256::zero();
+            let result_query = MemoryQuery {
+                timestamp: timestamp_to_write,
+                location: write_location,
+                value: empty_result,
+                value_is_pointer: false,
+                rw_flag: true,
+            };
+            let result_query = memory.execute_partial_query(monotonic_cycle_counter, result_query);
+
+            if B {
+                round_witness.writes[0] = ok_or_err_query;
+                round_witness.writes[1] = result_query;
+                write_history.push(ok_or_err_query);
+                write_history.push(result_query);
+            }
+        }
+
+        let witness = if B {
+            Some((read_history, write_history, vec![round_witness]))
+        } else {
+            None
+        };
+
+        (NUM_ROUNDS, witness)
+    }
+}
+
+/// This function adds two points (x1,y1) and (x2,y2) on the BN254 curve.
+/// It returns the result as a G1Affine point.
+///
+/// If the points are not on the curve or coordinates are not valid field elements,
+/// the function will return an error.
+pub fn ecadd_inner(
+    (x1, y1): (U256, U256),
+    (x2, y2): (U256, U256),
+) -> Result<G1Affine> {
+    // Converting coordinates to the finite field format
+    // and validating that the conversion is successful
+    let x1_field = Fq::from_str(x1.to_string().as_str()).ok_or(Error::msg("invalid x1"))?;
+    let y1_field = Fq::from_str(y1.to_string().as_str()).ok_or(Error::msg("invalid y1"))?;
+    let x2_field = Fq::from_str(x2.to_string().as_str()).ok_or(Error::msg("invalid x2"))?;
+    let y2_field = Fq::from_str(y2.to_string().as_str()).ok_or(Error::msg("invalid y2"))?;
+
+    // If one of the points is zero, then both coordinates are zero,
+    // which aligns with the from_xy_checked method implementation.
+    // However, if some point does not lie on the curve, the method will return an error.
+    let point_1 = G1Affine::from_xy_checked(x1_field, y1_field)?;
+    let point_2 = G1Affine::from_xy_checked(x2_field, y2_field)?;
+
+    let mut point_1_projective = point_1.into_projective();
+    point_1_projective.add_assign_mixed(&point_2);
+
+    let point_1 = point_1_projective.into_affine();
+    Ok(point_1)
+}
+
+pub fn ecadd_function<M: Memory, const B: bool>(
+    monotonic_cycle_counter: u32,
+    precompile_call_params: LogQuery,
+    memory: &mut M,
+) -> (
+    usize,
+    Option<(Vec<MemoryQuery>, Vec<MemoryQuery>, Vec<ECAddRoundWitness>)>,
+) {
+    let mut processor = ECAddPrecompile::<B>;
+    processor.execute_precompile(monotonic_cycle_counter, precompile_call_params, memory)
+}
