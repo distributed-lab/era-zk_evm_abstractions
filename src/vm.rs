@@ -8,8 +8,7 @@ use crate::{
     precompiles::{
         ecrecover::ECRecoverPrecompile, keccak256::Keccak256Precompile,
         secp256r1_verify::Secp256r1VerifyPrecompile, sha256::Sha256Precompile,
-        ecrecover::ECRecoverPrecompile, keccak256::Keccak256Precompile, sha256::Sha256Precompile,
-        ecadd::ECAddPrecompile, ecmul::ECMulPrecompile,
+        ecadd::ECAddPrecompile, ecmul::ECMulPrecompile, ecpairing::ECPairingPrecompile,
     },
     queries::{DecommittmentQuery, LogQuery, MemoryQuery},
 };
@@ -62,6 +61,7 @@ pub enum PrecompileCyclesWitness {
     ECRecover(Vec<<ECRecoverPrecompile<true> as Precompile>::CycleWitness>),
     ECAdd(Vec<<ECAddPrecompile<true> as Precompile>::CycleWitness>),
     ECMul(Vec<<ECMulPrecompile<true> as Precompile>::CycleWitness>),
+    ECPairing(Vec<<ECPairingPrecompile<true> as Precompile>::CycleWitness>),
     Secp256r1Verify(Vec<<Secp256r1VerifyPrecompile<true> as Precompile>::CycleWitness>),
 }
 
