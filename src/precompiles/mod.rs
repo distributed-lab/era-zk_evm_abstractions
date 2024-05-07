@@ -8,12 +8,14 @@ pub mod secp256r1_verify;
 pub mod sha256;
 
 pub mod ecadd;
+pub mod ecmul;
 
 use num_enum::TryFromPrimitive;
-use zkevm_opcode_defs::system_params::ECADD_INNER_FUNCTION_PRECOMPILE_ADDRESS;
+use zkevm_opcode_defs::system_params::ECMUL_INNER_FUNCTION_PRECOMPILE_ADDRESS;
 use std::convert::TryFrom;
 use zkevm_opcode_defs::system_params::{
     ECRECOVER_INNER_FUNCTION_PRECOMPILE_ADDRESS, KECCAK256_ROUND_FUNCTION_PRECOMPILE_ADDRESS,
+    SHA256_ROUND_FUNCTION_PRECOMPILE_ADDRESS, ECADD_INNER_FUNCTION_PRECOMPILE_ADDRESS,
     SECP256R1_VERIFY_PRECOMPILE_ADDRESS, SHA256_ROUND_FUNCTION_PRECOMPILE_ADDRESS,
 };
 
@@ -25,8 +27,9 @@ pub enum PrecompileAddress {
     Ecrecover = ECRECOVER_INNER_FUNCTION_PRECOMPILE_ADDRESS,
     SHA256 = SHA256_ROUND_FUNCTION_PRECOMPILE_ADDRESS,
     Keccak256 = KECCAK256_ROUND_FUNCTION_PRECOMPILE_ADDRESS,
+    EcAdd = ECADD_INNER_FUNCTION_PRECOMPILE_ADDRESS,
+    EcMul = ECMUL_INNER_FUNCTION_PRECOMPILE_ADDRESS,
     Secp256r1Verify = SECP256R1_VERIFY_PRECOMPILE_ADDRESS,
-    EcAdd = ECADD_INNER_FUNCTION_PRECOMPILE_ADDRESS
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -185,6 +188,32 @@ impl<const B: bool> PrecompilesProcessor for DefaultPrecompilesProcessor<B> {
                     ))
                 } else {
                     let _ = ecadd::ecadd_function::<M, B>(
+                        monotonic_cycle_counter,
+                        query,
+                        memory,
+                    );
+
+                    None
+                }
+            },
+            PrecompileAddress::EcMul => {
+                // pure function call, non-revertable
+                if B {
+                    let (reads, writes, round_witness) = ecmul::ecmul_function::<M, B>(
+                        monotonic_cycle_counter,
+                        query,
+                        memory,
+                    )
+                    .1
+                    .expect("must generate intermediate witness");
+
+                    Some((
+                        reads,
+                        writes,
+                        PrecompileCyclesWitness::ECMul(round_witness),
+                    ))
+                } else {
+                    let _ = ecmul::ecmul_function::<M, B>(
                         monotonic_cycle_counter,
                         query,
                         memory,
