@@ -4,8 +4,8 @@ use anyhow::{Error, Result};
 use zkevm_opcode_defs::bn254::bn256::{Fq, G1Affine};
 use zkevm_opcode_defs::bn254::ff::PrimeField;
 use zkevm_opcode_defs::bn254::{CurveAffine, CurveProjective};
-pub use zkevm_opcode_defs::sha2::Digest;
 use zkevm_opcode_defs::ethereum_types::U256;
+pub use zkevm_opcode_defs::sha2::Digest;
 
 use super::*;
 
@@ -167,7 +167,7 @@ impl<const B: bool> Precompile for ECAddPrecompile<B> {
 
             // Writing resultant x coordinate
             write_location.index.0 += 1;
-            
+
             let result_query = MemoryQuery {
                 timestamp: timestamp_to_write,
                 location: write_location,
@@ -186,7 +186,7 @@ impl<const B: bool> Precompile for ECAddPrecompile<B> {
 
             // Writing resultant y coordinate
             write_location.index.0 += 1;
-            
+
             let result_query = MemoryQuery {
                 timestamp: timestamp_to_write,
                 location: write_location,
@@ -254,10 +254,7 @@ impl<const B: bool> Precompile for ECAddPrecompile<B> {
 ///
 /// If the points are not on the curve or coordinates are not valid field elements,
 /// the function will return an error.
-pub fn ecadd_inner(
-    (x1, y1): (U256, U256),
-    (x2, y2): (U256, U256),
-) -> Result<G1Affine> {
+pub fn ecadd_inner((x1, y1): (U256, U256), (x2, y2): (U256, U256)) -> Result<G1Affine> {
     // Converting coordinates to the finite field format
     // and validating that the conversion is successful
     let x1_field = Fq::from_str(x1.to_string().as_str()).ok_or(Error::msg("invalid x1"))?;
@@ -298,15 +295,37 @@ pub mod tests {
     fn test_ecadd_inner_correctness() {
         use super::*;
 
-        let x1 = U256::from_str_radix("0x1148f79e53544582d22e5071480ae679d0b9df89d69e881f611e8381384ed1ad", 16).unwrap();
-        let y1 = U256::from_str_radix("0xbac10178d2cd8aa9b4af903461b9f1666c219cdfeb2bb5e0cd7cd6486a32a6d", 16).unwrap();
-        let x2 = U256::from_str_radix("0x251edb9081aba0cb29a45e4565ab2a2136750be5c893000e35e031ee123889e8", 16).unwrap();
-        let y2 = U256::from_str_radix("0x24a972b009ad5986a7e14781d4e0c2d11aff281004712470811ec9b4fcb7c569", 16).unwrap();
+        let x1 = U256::from_str_radix(
+            "0x1148f79e53544582d22e5071480ae679d0b9df89d69e881f611e8381384ed1ad",
+            16,
+        )
+        .unwrap();
+        let y1 = U256::from_str_radix(
+            "0xbac10178d2cd8aa9b4af903461b9f1666c219cdfeb2bb5e0cd7cd6486a32a6d",
+            16,
+        )
+        .unwrap();
+        let x2 = U256::from_str_radix(
+            "0x251edb9081aba0cb29a45e4565ab2a2136750be5c893000e35e031ee123889e8",
+            16,
+        )
+        .unwrap();
+        let y2 = U256::from_str_radix(
+            "0x24a972b009ad5986a7e14781d4e0c2d11aff281004712470811ec9b4fcb7c569",
+            16,
+        )
+        .unwrap();
 
         let result = ecadd_inner((x1, y1), (x2, y2)).unwrap();
 
-        let expected_x = Fq::from_str("16722044054529980026630802318818607593549086552476606668453035265973506741708").unwrap();
-        let expected_y = Fq::from_str("5777135421494458653665242593020841953920930780504228016288089286576416057645").unwrap();
+        let expected_x = Fq::from_str(
+            "16722044054529980026630802318818607593549086552476606668453035265973506741708",
+        )
+        .unwrap();
+        let expected_y = Fq::from_str(
+            "5777135421494458653665242593020841953920930780504228016288089286576416057645",
+        )
+        .unwrap();
         let expected_result = G1Affine::from_xy_checked(expected_x, expected_y).unwrap();
 
         assert_eq!(result, expected_result);
@@ -321,8 +340,16 @@ pub mod tests {
         // (x1, y1) does not lie on the curve
         let x1 = U256::from_str_radix("1", 10).unwrap();
         let y1 = U256::from_str_radix("3", 10).unwrap();
-        let x2 = U256::from_str_radix("0x251edb9081aba0cb29a45e4565ab2a2136750be5c893000e35e031ee123889e8", 16).unwrap();
-        let y2 = U256::from_str_radix("0x24a972b009ad5986a7e14781d4e0c2d11aff281004712470811ec9b4fcb7c569", 16).unwrap();
+        let x2 = U256::from_str_radix(
+            "0x251edb9081aba0cb29a45e4565ab2a2136750be5c893000e35e031ee123889e8",
+            16,
+        )
+        .unwrap();
+        let y2 = U256::from_str_radix(
+            "0x24a972b009ad5986a7e14781d4e0c2d11aff281004712470811ec9b4fcb7c569",
+            16,
+        )
+        .unwrap();
 
         let _ = ecadd_inner((x1, y1), (x2, y2)).unwrap();
     }
@@ -333,9 +360,18 @@ pub mod tests {
     fn test_ecadd_inner_invalid_x2y2() {
         use super::*;
 
-        // (x1, y1) does not lie on the curve
-        let x1 = U256::from_str_radix("0x1148f79e53544582d22e5071480ae679d0b9df89d69e881f611e8381384ed1ad", 10).unwrap();
-        let y1 = U256::from_str_radix("0xbac10178d2cd8aa9b4af903461b9f1666c219cdfeb2bb5e0cd7cd6486a32a6d", 10).unwrap();
+        let x1 = U256::from_str_radix(
+            "0x1148f79e53544582d22e5071480ae679d0b9df89d69e881f611e8381384ed1ad",
+            10,
+        )
+        .unwrap();
+        let y1 = U256::from_str_radix(
+            "0xbac10178d2cd8aa9b4af903461b9f1666c219cdfeb2bb5e0cd7cd6486a32a6d",
+            10,
+        )
+        .unwrap();
+
+        // (x2, y2) does not lie on the curve
         let x2 = U256::from_str_radix("1", 16).unwrap();
         let y2 = U256::from_str_radix("10", 16).unwrap();
 

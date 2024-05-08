@@ -2,12 +2,12 @@ use anyhow::{Error, Result};
 use zkevm_opcode_defs::bn254::bn256::{Fq, Fq12, Fq2, G1Affine, G2Affine};
 use zkevm_opcode_defs::bn254::ff::{Field, PrimeField};
 use zkevm_opcode_defs::bn254::CurveAffine;
-pub use zkevm_opcode_defs::sha2::Digest;
 use zkevm_opcode_defs::ethereum_types::U256;
+pub use zkevm_opcode_defs::sha2::Digest;
 
 use super::*;
 
-// NOTE: We need x1, y1, x2, y2, x3, y3: 
+// NOTE: We need x1, y1, x2, y2, x3, y3:
 pub const MEMORY_READS_PER_CYCLE: usize = 6;
 // NOTE: We need to specify the result of the pairing and the status of the operation
 pub const MEMORY_WRITES_PER_CYCLE: usize = 2;
@@ -171,7 +171,11 @@ impl<const B: bool> Precompile for ECPairingPrecompile<B> {
         }
 
         // Performing multiplication
-        let pairing_check = ecpairing_inner((x1_value, y1_value), (x2_value, y2_value), (x3_value, y3_value));
+        let pairing_check = ecpairing_inner(
+            (x1_value, y1_value),
+            (x2_value, y2_value),
+            (x3_value, y3_value),
+        );
 
         if let Ok(result) = pairing_check {
             let mut write_location = MemoryLocation {
@@ -198,7 +202,7 @@ impl<const B: bool> Precompile for ECPairingPrecompile<B> {
                 output_value = U256::one();
             }
 
-            write_location.index.0 += 1;            
+            write_location.index.0 += 1;
             let result_query = MemoryQuery {
                 timestamp: timestamp_to_write,
                 location: write_location,
@@ -285,11 +289,11 @@ pub fn ecpairing_inner(
     // which aligns with the from_xy_checked method implementation.
     let point_1 = G1Affine::from_xy_checked(x1_field, y1_field)?;
 
-    let point_2_x = Fq2{
+    let point_2_x = Fq2 {
         c0: x2_field,
         c1: y2_field,
     };
-    let point_2_y = Fq2{
+    let point_2_y = Fq2 {
         c0: x3_field,
         c1: y3_field,
     };
@@ -306,7 +310,11 @@ pub fn ecpairing_function<M: Memory, const B: bool>(
     memory: &mut M,
 ) -> (
     usize,
-    Option<(Vec<MemoryQuery>, Vec<MemoryQuery>, Vec<ECPairingRoundWitness>)>,
+    Option<(
+        Vec<MemoryQuery>,
+        Vec<MemoryQuery>,
+        Vec<ECPairingRoundWitness>,
+    )>,
 ) {
     let mut processor = ECPairingPrecompile::<B>;
     processor.execute_precompile(monotonic_cycle_counter, precompile_call_params, memory)
