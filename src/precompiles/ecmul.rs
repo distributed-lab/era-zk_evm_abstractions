@@ -270,7 +270,7 @@ pub mod tests {
     /// Tests the correctness of the `ecmul_inner` function for a specified point
     /// and a scalar inside the test.
     #[test]
-    fn test_ecmul_inner() {
+    fn test_ecmul_inner_correctness() {
         use super::*;
 
         let x1 = U256::from_str_radix(
