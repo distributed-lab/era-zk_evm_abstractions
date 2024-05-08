@@ -267,3 +267,38 @@ pub fn ecmul_function<M: Memory, const B: bool>(
     let mut processor = ECMulPrecompile::<B>;
     processor.execute_precompile(monotonic_cycle_counter, precompile_call_params, memory)
 }
+
+#[cfg(test)]
+pub mod tests {
+    /// Tests the correctness of the `ecmul_inner` function for a specified point
+    /// and a scalar inside the test.
+    #[test]
+    fn test_ecmul_inner() {
+        use super::*;
+
+        let x1 = U256::from_str_radix("0x1148f79e53544582d22e5071480ae679d0b9df89d69e881f611e8381384ed1ad", 16).unwrap();
+        let y1 = U256::from_str_radix("0xbac10178d2cd8aa9b4af903461b9f1666c219cdfeb2bb5e0cd7cd6486a32a6d", 16).unwrap();
+        let s = U256::from_str_radix("0x15f0e77d431a6c4d21df6a71cdcb0b2eeba21fc1192bd9801b8cd8b7c763e115", 16).unwrap();
+
+        let result = ecmul_inner((x1, y1), s).unwrap();
+
+        let expected_x = Fq::from_str("9941674825074992183128808489717167636392653540258056893654639521381088261704").unwrap();
+        let expected_y = Fq::from_str("8986289197266457569457494475222656986225227492679168701241837087965910154278").unwrap();
+        let expected_result = G1Affine::from_xy_checked(expected_x, expected_y).unwrap();
+
+        assert_eq!(result, expected_result);
+    }
+
+    /// Tests that the function does not allow to multiply by an invalid point.
+    #[test]
+    #[should_panic]
+    fn test_ecmul_invalid_point() {
+        use super::*;
+
+        let x1 = U256::from_str_radix("1", 10).unwrap();
+        let y1 = U256::from_str_radix("10", 10).unwrap();
+        let s = U256::from_str_radix("0x15f0e77d431a6c4d21df6a71cdcb0b2eeba21fc1192bd9801b8cd8b7c763e115", 16).unwrap();
+
+        let _ = ecmul_inner((x1, y1), s).unwrap();
+    }
+}
