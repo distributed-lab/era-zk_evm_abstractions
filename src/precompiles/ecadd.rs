@@ -168,39 +168,34 @@ impl<const B: bool> Precompile for ECAddPrecompile<B> {
             // Writing resultant x coordinate
             write_location.index.0 += 1;
 
-            let result_query = MemoryQuery {
+            let x_result_query = MemoryQuery {
                 timestamp: timestamp_to_write,
                 location: write_location,
                 value: x,
                 value_is_pointer: false,
                 rw_flag: true,
             };
-            let result_query = memory.execute_partial_query(monotonic_cycle_counter, result_query);
-
-            if B {
-                round_witness.writes[0] = ok_or_err_query;
-                round_witness.writes[1] = result_query;
-                write_history.push(ok_or_err_query);
-                write_history.push(result_query);
-            }
+            let x_result_query = memory.execute_partial_query(monotonic_cycle_counter, x_result_query);
 
             // Writing resultant y coordinate
             write_location.index.0 += 1;
 
-            let result_query = MemoryQuery {
+            let y_result_query = MemoryQuery {
                 timestamp: timestamp_to_write,
                 location: write_location,
                 value: y,
                 value_is_pointer: false,
                 rw_flag: true,
             };
-            let result_query = memory.execute_partial_query(monotonic_cycle_counter, result_query);
+            let y_result_query = memory.execute_partial_query(monotonic_cycle_counter, y_result_query);
 
             if B {
                 round_witness.writes[0] = ok_or_err_query;
-                round_witness.writes[1] = result_query;
+                round_witness.writes[1] = x_result_query;
+                round_witness.writes[2] = y_result_query;
                 write_history.push(ok_or_err_query);
-                write_history.push(result_query);
+                write_history.push(x_result_query);
+                write_history.push(y_result_query);
             }
         } else {
             let mut write_location = MemoryLocation {
@@ -222,20 +217,31 @@ impl<const B: bool> Precompile for ECAddPrecompile<B> {
 
             write_location.index.0 += 1;
             let empty_result = U256::zero();
-            let result_query = MemoryQuery {
+            let x_result_query = MemoryQuery {
                 timestamp: timestamp_to_write,
                 location: write_location,
                 value: empty_result,
                 value_is_pointer: false,
                 rw_flag: true,
             };
-            let result_query = memory.execute_partial_query(monotonic_cycle_counter, result_query);
+            let x_result_query = memory.execute_partial_query(monotonic_cycle_counter, x_result_query);
+
+            let y_result_query = MemoryQuery {
+                timestamp: timestamp_to_write,
+                location: write_location,
+                value: empty_result,
+                value_is_pointer: false,
+                rw_flag: true,
+            };
+            let y_result_query = memory.execute_partial_query(monotonic_cycle_counter, y_result_query);
 
             if B {
                 round_witness.writes[0] = ok_or_err_query;
-                round_witness.writes[1] = result_query;
+                round_witness.writes[1] = x_result_query;
+                round_witness.writes[2] = y_result_query;
                 write_history.push(ok_or_err_query);
-                write_history.push(result_query);
+                write_history.push(x_result_query);
+                write_history.push(y_result_query);
             }
         }
 
