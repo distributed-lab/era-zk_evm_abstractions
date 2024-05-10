@@ -12,10 +12,10 @@ pub mod secp256r1_verify;
 pub mod sha256;
 
 use num_enum::TryFromPrimitive;
-use zkevm_opcode_defs::system_params::MODEXP_INNER_FUNCTION_PRECOMPILE_ADDRESS;
 use std::convert::TryFrom;
 use zkevm_opcode_defs::system_params::ECMUL_INNER_FUNCTION_PRECOMPILE_ADDRESS;
 use zkevm_opcode_defs::system_params::ECPAIRING_INNER_FUNCTION_PRECOMPILE_ADDRESS;
+use zkevm_opcode_defs::system_params::MODEXP_INNER_FUNCTION_PRECOMPILE_ADDRESS;
 use zkevm_opcode_defs::system_params::{
     ECRECOVER_INNER_FUNCTION_PRECOMPILE_ADDRESS, KECCAK256_ROUND_FUNCTION_PRECOMPILE_ADDRESS,
     SHA256_ROUND_FUNCTION_PRECOMPILE_ADDRESS, ECADD_INNER_FUNCTION_PRECOMPILE_ADDRESS,
@@ -230,17 +230,14 @@ impl<const B: bool> PrecompilesProcessor for DefaultPrecompilesProcessor<B> {
 
                     None
                 }
-            },
+            }
             PrecompileAddress::Modexp => {
                 // pure function call, non-revertable
                 if B {
-                    let (reads, writes, round_witness) = modexp::modexp_function::<M, B>(
-                        monotonic_cycle_counter,
-                        query,
-                        memory,
-                    )
-                    .1
-                    .expect("must generate intermediate witness");
+                    let (reads, writes, round_witness) =
+                        modexp::modexp_function::<M, B>(monotonic_cycle_counter, query, memory)
+                            .1
+                            .expect("must generate intermediate witness");
 
                     Some((
                         reads,
@@ -248,11 +245,7 @@ impl<const B: bool> PrecompilesProcessor for DefaultPrecompilesProcessor<B> {
                         PrecompileCyclesWitness::Modexp(round_witness),
                     ))
                 } else {
-                    let _ = modexp::modexp_function::<M, B>(
-                        monotonic_cycle_counter,
-                        query,
-                        memory,
-                    );
+                    let _ = modexp::modexp_function::<M, B>(monotonic_cycle_counter, query, memory);
 
                     None
                 }

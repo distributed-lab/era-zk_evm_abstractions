@@ -37,7 +37,8 @@ impl<const B: bool> Precompile for ECPairingPrecompile<B> {
         usize,
         Option<(Vec<MemoryQuery>, Vec<MemoryQuery>, Vec<Self::CycleWitness>)>,
     ) {
-        const NUM_ROUNDS: usize = 1;
+        // EC pairing might take arbitrary number of inputs, so we just set 16 as a default
+        const NUM_ROUNDS: usize = 16;
 
         // read the parameters
         let precompile_call_params = query;
@@ -51,22 +52,14 @@ impl<const B: bool> Precompile for ECPairingPrecompile<B> {
             index: MemoryIndex(params.input_memory_offset),
         };
 
-        // we assume that we have
-        // - x1 as U256 as a first coordinate of the first point (32 bytes)
-        // - y1 as U256 as a second coordinate of the first point (32 bytes)
-        // - x2 as U256 as a c0 component of first coordinate of the second point (32 bytes)
-        // - y2 as U256 as a c1 component of first coordinate of the second point (32 bytes)
-        // - x3 as U256 as a c0 component of second coordinate of the second point (32 bytes)
-        // - y3 as U256 as a c1 component of second coordinate of the second point (32 bytes)
-
-        // we do 8 queries per precompile
+        // we do 8*NUM_ROUNDS queries per precompile
         let mut read_history = if B {
-            Vec::with_capacity(MEMORY_READS_PER_CYCLE)
+            Vec::with_capacity(NUM_ROUNDS * MEMORY_READS_PER_CYCLE)
         } else {
             vec![]
         };
         let mut write_history = if B {
-            Vec::with_capacity(MEMORY_WRITES_PER_CYCLE)
+            Vec::with_capacity(NUM_ROUNDS * MEMORY_WRITES_PER_CYCLE)
         } else {
             vec![]
         };
@@ -76,107 +69,120 @@ impl<const B: bool> Precompile for ECPairingPrecompile<B> {
             reads: [MemoryQuery::empty(); MEMORY_READS_PER_CYCLE],
             writes: [MemoryQuery::empty(); MEMORY_WRITES_PER_CYCLE],
         };
-
         let mut read_idx = 0;
 
-        let x1_query = MemoryQuery {
-            timestamp: timestamp_to_read,
-            location: current_read_location,
-            value: U256::zero(),
-            value_is_pointer: false,
-            rw_flag: false,
-        };
-        let x1_query = memory.execute_partial_query(monotonic_cycle_counter, x1_query);
-        let x1_value = x1_query.value;
-        if B {
-            round_witness.reads[read_idx] = x1_query;
-            read_idx += 1;
-            read_history.push(x1_query);
-        }
+        let mut check_tuples: [EcPairingInputTuple; NUM_ROUNDS] = [[U256::zero(); 6]; NUM_ROUNDS];
 
-        current_read_location.index.0 += 1;
-        let y1_query = MemoryQuery {
-            timestamp: timestamp_to_read,
-            location: current_read_location,
-            value: U256::zero(),
-            value_is_pointer: false,
-            rw_flag: false,
-        };
-        let y1_query = memory.execute_partial_query(monotonic_cycle_counter, y1_query);
-        let y1_value = y1_query.value;
-        if B {
-            round_witness.reads[read_idx] = y1_query;
-            read_idx += 1;
-            read_history.push(y1_query);
-        }
+        // Doing NUM_ROUNDS
+        for i in 0..NUM_ROUNDS {
+            // we assume that we have
+            // - x1 as U256 as a first coordinate of the first point (32 bytes)
+            // - y1 as U256 as a second coordinate of the first point (32 bytes)
+            // - x2 as U256 as a c0 component of first coordinate of the second point (32 bytes)
+            // - y2 as U256 as a c1 component of first coordinate of the second point (32 bytes)
+            // - x3 as U256 as a c0 component of second coordinate of the second point (32 bytes)
+            // - y3 as U256 as a c1 component of second coordinate of the second point (32 bytes)
 
-        current_read_location.index.0 += 1;
-        let x2_query = MemoryQuery {
-            timestamp: timestamp_to_read,
-            location: current_read_location,
-            value: U256::zero(),
-            value_is_pointer: false,
-            rw_flag: false,
-        };
-        let x2_query = memory.execute_partial_query(monotonic_cycle_counter, x2_query);
-        let x2_value = x2_query.value;
-        if B {
-            round_witness.reads[read_idx] = x2_query;
-            read_idx += 1;
-            read_history.push(x2_query);
-        }
+            let x1_query = MemoryQuery {
+                timestamp: timestamp_to_read,
+                location: current_read_location,
+                value: U256::zero(),
+                value_is_pointer: false,
+                rw_flag: false,
+            };
+            let x1_query = memory.execute_partial_query(monotonic_cycle_counter, x1_query);
+            let x1_value = x1_query.value;
+            if B {
+                round_witness.reads[read_idx] = x1_query;
+                read_idx += 1;
+                read_history.push(x1_query);
+            }
 
-        current_read_location.index.0 += 1;
-        let y2_query = MemoryQuery {
-            timestamp: timestamp_to_read,
-            location: current_read_location,
-            value: U256::zero(),
-            value_is_pointer: false,
-            rw_flag: false,
-        };
-        let y2_query = memory.execute_partial_query(monotonic_cycle_counter, y2_query);
-        let y2_value = y2_query.value;
-        if B {
-            round_witness.reads[read_idx] = y2_query;
-            read_idx += 1;
-            read_history.push(y2_query);
-        }
+            current_read_location.index.0 += 1;
+            let y1_query = MemoryQuery {
+                timestamp: timestamp_to_read,
+                location: current_read_location,
+                value: U256::zero(),
+                value_is_pointer: false,
+                rw_flag: false,
+            };
+            let y1_query = memory.execute_partial_query(monotonic_cycle_counter, y1_query);
+            let y1_value = y1_query.value;
+            if B {
+                round_witness.reads[read_idx] = y1_query;
+                read_idx += 1;
+                read_history.push(y1_query);
+            }
 
-        current_read_location.index.0 += 1;
-        let x3_query = MemoryQuery {
-            timestamp: timestamp_to_read,
-            location: current_read_location,
-            value: U256::zero(),
-            value_is_pointer: false,
-            rw_flag: false,
-        };
-        let x3_query = memory.execute_partial_query(monotonic_cycle_counter, x3_query);
-        let x3_value = x3_query.value;
-        if B {
-            round_witness.reads[read_idx] = x3_query;
-            read_idx += 1;
-            read_history.push(x3_query);
-        }
+            current_read_location.index.0 += 1;
+            let x2_query = MemoryQuery {
+                timestamp: timestamp_to_read,
+                location: current_read_location,
+                value: U256::zero(),
+                value_is_pointer: false,
+                rw_flag: false,
+            };
+            let x2_query = memory.execute_partial_query(monotonic_cycle_counter, x2_query);
+            let x2_value = x2_query.value;
+            if B {
+                round_witness.reads[read_idx] = x2_query;
+                read_idx += 1;
+                read_history.push(x2_query);
+            }
 
-        current_read_location.index.0 += 1;
-        let y3_query = MemoryQuery {
-            timestamp: timestamp_to_read,
-            location: current_read_location,
-            value: U256::zero(),
-            value_is_pointer: false,
-            rw_flag: false,
-        };
-        let y3_query = memory.execute_partial_query(monotonic_cycle_counter, y3_query);
-        let y3_value = y3_query.value;
-        if B {
-            round_witness.reads[read_idx] = y3_query;
-            read_history.push(y3_query);
+            current_read_location.index.0 += 1;
+            let y2_query = MemoryQuery {
+                timestamp: timestamp_to_read,
+                location: current_read_location,
+                value: U256::zero(),
+                value_is_pointer: false,
+                rw_flag: false,
+            };
+            let y2_query = memory.execute_partial_query(monotonic_cycle_counter, y2_query);
+            let y2_value = y2_query.value;
+            if B {
+                round_witness.reads[read_idx] = y2_query;
+                read_idx += 1;
+                read_history.push(y2_query);
+            }
+
+            current_read_location.index.0 += 1;
+            let x3_query = MemoryQuery {
+                timestamp: timestamp_to_read,
+                location: current_read_location,
+                value: U256::zero(),
+                value_is_pointer: false,
+                rw_flag: false,
+            };
+            let x3_query = memory.execute_partial_query(monotonic_cycle_counter, x3_query);
+            let x3_value = x3_query.value;
+            if B {
+                round_witness.reads[read_idx] = x3_query;
+                read_idx += 1;
+                read_history.push(x3_query);
+            }
+
+            current_read_location.index.0 += 1;
+            let y3_query = MemoryQuery {
+                timestamp: timestamp_to_read,
+                location: current_read_location,
+                value: U256::zero(),
+                value_is_pointer: false,
+                rw_flag: false,
+            };
+            let y3_query = memory.execute_partial_query(monotonic_cycle_counter, y3_query);
+            let y3_value = y3_query.value;
+            if B {
+                round_witness.reads[read_idx] = y3_query;
+                read_history.push(y3_query);
+            }
+
+            // Setting check tuples
+            check_tuples[i] = [x1_value, y1_value, x2_value, y2_value, x3_value, y3_value];
         }
 
         // Performing multiplication
-        let pairing_check = ecpairing_inner(vec![[
-            x1_value, y1_value, x2_value, y2_value, x3_value, y3_value,
-        ]]);
+        let pairing_check = ecpairing_inner(check_tuples.to_vec());
 
         if let Ok(result) = pairing_check {
             let mut write_location = MemoryLocation {
@@ -452,6 +458,93 @@ pub mod tests {
         let result = ecpairing_inner(vec![
             [x1_1, y1_1, x2_1, y2_1, x3_1, y3_1],
             [x1_2, y1_2, x2_2, y2_2, x3_2, y3_2],
+        ])
+        .unwrap();
+
+        assert_eq!(result, true);
+    }
+
+    /// Tests the correctness of the `ecpairing_inner` by providing four valid points on the curve
+    /// and the rest are empty points. Example is taken from https://www.evm.codes/precompiled#0x08.
+    #[test]
+    fn test_ecpairing_inner_correctness_zero_inputs() {
+        use super::*;
+
+        let x1_1 = U256::from_str_radix(
+            "0x2cf44499d5d27bb186308b7af7af02ac5bc9eeb6a3d147c186b21fb1b76e18da",
+            16,
+        )
+        .unwrap();
+        let y1_1 = U256::from_str_radix(
+            "0x2c0f001f52110ccfe69108924926e45f0b0c868df0e7bde1fe16d3242dc715f6",
+            16,
+        )
+        .unwrap();
+
+        let x2_1 = U256::from_str_radix(
+            "0x1fb19bb476f6b9e44e2a32234da8212f61cd63919354bc06aef31e3cfaff3ebc",
+            16,
+        )
+        .unwrap();
+        let y2_1 = U256::from_str_radix(
+            "0x22606845ff186793914e03e21df544c34ffe2f2f3504de8a79d9159eca2d98d9",
+            16,
+        )
+        .unwrap();
+
+        let x3_1 = U256::from_str_radix(
+            "0x2bd368e28381e8eccb5fa81fc26cf3f048eea9abfdd85d7ed3ab3698d63e4f90",
+            16,
+        )
+        .unwrap();
+        let y3_1 = U256::from_str_radix(
+            "0x2fe02e47887507adf0ff1743cbac6ba291e66f59be6bd763950bb16041a0a85e",
+            16,
+        )
+        .unwrap();
+
+        let x1_2 = U256::from_str_radix(
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            16,
+        )
+        .unwrap();
+        let y1_2 = U256::from_str_radix(
+            "0x30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd45",
+            16,
+        )
+        .unwrap();
+
+        let x2_2 = U256::from_str_radix(
+            "0x1971ff0471b09fa93caaf13cbf443c1aede09cc4328f5a62aad45f40ec133eb4",
+            16,
+        )
+        .unwrap();
+        let y2_2 = U256::from_str_radix(
+            "0x091058a3141822985733cbdddfed0fd8d6c104e9e9eff40bf5abfef9ab163bc7",
+            16,
+        )
+        .unwrap();
+
+        let x3_2 = U256::from_str_radix(
+            "0x2a23af9a5ce2ba2796c1f4e453a370eb0af8c212d9dc9acd8fc02c2e907baea2",
+            16,
+        )
+        .unwrap();
+        let y3_2 = U256::from_str_radix(
+            "0x23a8eb0b0996252cb548a4487da97b02422ebc0e834613f954de6c7e0afdc1fc",
+            16,
+        )
+        .unwrap();
+
+        let empty_input = [U256::zero(); 6];
+
+        let result = ecpairing_inner(vec![
+            [x1_1, y1_1, x2_1, y2_1, x3_1, y3_1],
+            [x1_2, y1_2, x2_2, y2_2, x3_2, y3_2],
+            empty_input,
+            empty_input,
+            empty_input,
+            empty_input,
         ])
         .unwrap();
 

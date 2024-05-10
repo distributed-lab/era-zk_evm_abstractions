@@ -9,6 +9,7 @@ use crate::{
         ecrecover::ECRecoverPrecompile, keccak256::Keccak256Precompile,
         secp256r1_verify::Secp256r1VerifyPrecompile, sha256::Sha256Precompile,
         ecadd::ECAddPrecompile, ecmul::ECMulPrecompile, ecpairing::ECPairingPrecompile,
+        modexp::ModexpPrecompile,
     },
     queries::{DecommittmentQuery, LogQuery, MemoryQuery},
 };
