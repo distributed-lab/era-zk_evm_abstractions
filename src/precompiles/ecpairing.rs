@@ -181,7 +181,7 @@ impl<const B: bool> Precompile for ECPairingPrecompile<B> {
             check_tuples[i] = [x1_value, y1_value, x2_value, y2_value, x3_value, y3_value];
         }
 
-        // Performing multiplication
+        // Performing ecpairing check
         let pairing_check = ecpairing_inner(check_tuples.to_vec());
 
         if let Ok(result) = pairing_check {

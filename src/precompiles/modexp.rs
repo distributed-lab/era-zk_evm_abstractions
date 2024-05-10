@@ -167,6 +167,7 @@ impl<const B: bool> Precompile for ModexpPrecompile<B> {
             read_history.push(m_query);
         }
 
+        // Perfmoring modular exponentiation
         let modexp = modexp_inner(
             b_size_value,
             e_size_value,
