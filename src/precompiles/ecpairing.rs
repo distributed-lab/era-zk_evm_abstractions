@@ -176,6 +176,7 @@ impl<const B: bool> Precompile for ECPairingPrecompile<B> {
                 round_witness.reads[read_idx] = y3_query;
                 read_history.push(y3_query);
             }
+            current_read_location.index.0 += 1;
 
             // Setting check tuples
             check_tuples[i] = [x1_value, y1_value, x2_value, y2_value, x3_value, y3_value];
@@ -460,6 +461,11 @@ pub mod tests {
             [x1_2, y1_2, x2_2, y2_2, x3_2, y3_2],
         ])
         .unwrap();
+
+        println!("{:?}", vec![
+            [x1_1, y1_1, x2_1, y2_1, x3_1, y3_1],
+            [x1_2, y1_2, x2_2, y2_2, x3_2, y3_2],
+        ]);
 
         assert_eq!(result, true);
     }
