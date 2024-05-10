@@ -161,7 +161,7 @@ impl<const B: bool> Precompile for ModexpPrecompile<B> {
             rw_flag: false,
         };
         let m_query = memory.execute_partial_query(monotonic_cycle_counter, m_query);
-        let m_value = e_query.value;
+        let m_value = m_query.value;
         if B {
             round_witness.reads[read_idx] = m_query;
             read_history.push(m_query);
