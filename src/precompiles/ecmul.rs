@@ -304,6 +304,31 @@ pub mod tests {
         assert_eq!(result, expected_result);
     }
 
+    /// Tests the correctness of the `ecmul_inner` function for a specified point
+    /// taken from https://www.evm.codes/precompiled#0x07
+    #[test]
+    fn test_ecmul_inner_correctness_evm_codes() {
+        use super::*;
+
+        let x1 = U256::from_str_radix("1", 10).unwrap();
+        let y1 = U256::from_str_radix("2", 10).unwrap();
+        let s = U256::from_str_radix("2", 10).unwrap();
+
+        let result = ecmul_inner((x1, y1), s).unwrap();
+
+        let expected_x = Fq::from_str(
+            "1368015179489954701390400359078579693043519447331113978918064868415326638035",
+        )
+        .unwrap();
+        let expected_y = Fq::from_str(
+            "9918110051302171585080402603319702774565515993150576347155970296011118125764",
+        )
+        .unwrap();
+        let expected_result = G1Affine::from_xy_checked(expected_x, expected_y).unwrap();
+
+        assert_eq!(result, expected_result);
+    }
+
     /// Tests that the function does not allow to multiply by an invalid point.
     #[test]
     #[should_panic]

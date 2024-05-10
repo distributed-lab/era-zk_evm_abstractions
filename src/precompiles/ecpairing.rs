@@ -377,8 +377,8 @@ pub mod tests {
         assert_eq!(result, false);
     }
 
-    /// Tests the correctness of the `ecpairing_inner` by providing two valid points on the curve
-    /// that do not produce one as an output.
+    /// Tests the correctness of the `ecpairing_inner` by providing four valid points on the curve
+    /// that do not produce one as an output. Example is taken from https://www.evm.codes/precompiled#0x08
     #[test]
     fn test_ecpairing_inner_correctness_true() {
         use super::*;

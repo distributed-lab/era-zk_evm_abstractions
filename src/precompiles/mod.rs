@@ -7,10 +7,12 @@ pub mod ecmul;
 pub mod ecpairing;
 pub mod ecrecover;
 pub mod keccak256;
+pub mod modexp;
 pub mod secp256r1_verify;
 pub mod sha256;
 
 use num_enum::TryFromPrimitive;
+use zkevm_opcode_defs::system_params::MODEXP_INNER_FUNCTION_PRECOMPILE_ADDRESS;
 use std::convert::TryFrom;
 use zkevm_opcode_defs::system_params::ECMUL_INNER_FUNCTION_PRECOMPILE_ADDRESS;
 use zkevm_opcode_defs::system_params::ECPAIRING_INNER_FUNCTION_PRECOMPILE_ADDRESS;
@@ -31,6 +33,7 @@ pub enum PrecompileAddress {
     EcAdd = ECADD_INNER_FUNCTION_PRECOMPILE_ADDRESS,
     EcMul = ECMUL_INNER_FUNCTION_PRECOMPILE_ADDRESS,
     EcPairing = ECPAIRING_INNER_FUNCTION_PRECOMPILE_ADDRESS,
+    Modexp = MODEXP_INNER_FUNCTION_PRECOMPILE_ADDRESS,
     Secp256r1Verify = SECP256R1_VERIFY_PRECOMPILE_ADDRESS,
 }
 
@@ -220,6 +223,32 @@ impl<const B: bool> PrecompilesProcessor for DefaultPrecompilesProcessor<B> {
                     ))
                 } else {
                     let _ = ecpairing::ecpairing_function::<M, B>(
+                        monotonic_cycle_counter,
+                        query,
+                        memory,
+                    );
+
+                    None
+                }
+            },
+            PrecompileAddress::Modexp => {
+                // pure function call, non-revertable
+                if B {
+                    let (reads, writes, round_witness) = modexp::modexp_function::<M, B>(
+                        monotonic_cycle_counter,
+                        query,
+                        memory,
+                    )
+                    .1
+                    .expect("must generate intermediate witness");
+
+                    Some((
+                        reads,
+                        writes,
+                        PrecompileCyclesWitness::Modexp(round_witness),
+                    ))
+                } else {
+                    let _ = modexp::modexp_function::<M, B>(
                         monotonic_cycle_counter,
                         query,
                         memory,

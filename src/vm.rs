@@ -62,8 +62,9 @@ pub enum PrecompileCyclesWitness {
     ECAdd(Vec<<ECAddPrecompile<true> as Precompile>::CycleWitness>),
     ECMul(Vec<<ECMulPrecompile<true> as Precompile>::CycleWitness>),
     ECPairing(Vec<<ECPairingPrecompile<true> as Precompile>::CycleWitness>),
+    Modexp(Vec<<ModexpPrecompile<true> as Precompile>::CycleWitness>),
     Secp256r1Verify(Vec<<Secp256r1VerifyPrecompile<true> as Precompile>::CycleWitness>),
-}
+ }
 
 // ALL traits here are for execution and NOT for witness generation. They can depend on one another, but should
 // not have large interconnections.
