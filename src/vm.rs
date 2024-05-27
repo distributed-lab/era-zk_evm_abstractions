@@ -6,10 +6,9 @@ use zkevm_opcode_defs::{
 use crate::{
     aux::{MemoryPage, PubdataCost, Timestamp},
     precompiles::{
-        ecrecover::ECRecoverPrecompile, keccak256::Keccak256Precompile,
-        secp256r1_verify::Secp256r1VerifyPrecompile, sha256::Sha256Precompile,
         ecadd::ECAddPrecompile, ecmul::ECMulPrecompile, ecpairing::ECPairingPrecompile,
-        modexp::ModexpPrecompile,
+        ecrecover::ECRecoverPrecompile, keccak256::Keccak256Precompile, modexp::ModexpPrecompile,
+        secp256r1_verify::Secp256r1VerifyPrecompile, sha256::Sha256Precompile,
     },
     queries::{DecommittmentQuery, LogQuery, MemoryQuery},
 };
@@ -65,7 +64,7 @@ pub enum PrecompileCyclesWitness {
     ECPairing(Vec<<ECPairingPrecompile<true> as Precompile>::CycleWitness>),
     Modexp(Vec<<ModexpPrecompile<true> as Precompile>::CycleWitness>),
     Secp256r1Verify(Vec<<Secp256r1VerifyPrecompile<true> as Precompile>::CycleWitness>),
- }
+}
 
 // ALL traits here are for execution and NOT for witness generation. They can depend on one another, but should
 // not have large interconnections.

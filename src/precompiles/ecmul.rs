@@ -158,7 +158,8 @@ impl<const B: bool> Precompile for ECMulPrecompile<B> {
                 value_is_pointer: false,
                 rw_flag: true,
             };
-            let x_result_query = memory.execute_partial_query(monotonic_cycle_counter, x_result_query);
+            let x_result_query =
+                memory.execute_partial_query(monotonic_cycle_counter, x_result_query);
 
             // Writing resultant y coordinate
             write_location.index.0 += 1;
@@ -170,7 +171,8 @@ impl<const B: bool> Precompile for ECMulPrecompile<B> {
                 value_is_pointer: false,
                 rw_flag: true,
             };
-            let y_result_query = memory.execute_partial_query(monotonic_cycle_counter, y_result_query);
+            let y_result_query =
+                memory.execute_partial_query(monotonic_cycle_counter, y_result_query);
 
             if B {
                 round_witness.writes[0] = ok_or_err_query;
@@ -207,7 +209,8 @@ impl<const B: bool> Precompile for ECMulPrecompile<B> {
                 value_is_pointer: false,
                 rw_flag: true,
             };
-            let x_result_query = memory.execute_partial_query(monotonic_cycle_counter, x_result_query);
+            let x_result_query =
+                memory.execute_partial_query(monotonic_cycle_counter, x_result_query);
 
             write_location.index.0 += 1;
             let empty_result = U256::zero();
@@ -218,7 +221,8 @@ impl<const B: bool> Precompile for ECMulPrecompile<B> {
                 value_is_pointer: false,
                 rw_flag: true,
             };
-            let y_result_query = memory.execute_partial_query(monotonic_cycle_counter, y_result_query);
+            let y_result_query =
+                memory.execute_partial_query(monotonic_cycle_counter, y_result_query);
 
             if B {
                 round_witness.writes[0] = ok_or_err_query;
