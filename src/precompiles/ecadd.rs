@@ -341,6 +341,60 @@ pub mod tests {
         assert_eq!(y, expected_y, "y coordinates are not equal");
     }
 
+    /// Tests the correctness of the `ecadd_inner` function when given
+    /// two opposite points.
+    #[test]
+    fn test_ecadd_inner_point_at_infinity_1() {
+        use super::*;
+
+        // Got:
+        let x1 = U256::from_str_radix(
+            "0x1148f79e53544582d22e5071480ae679d0b9df89d69e881f611e8381384ed1ad",
+            16,
+        )
+        .unwrap();
+        let y1 = U256::from_str_radix(
+            "0xbac10178d2cd8aa9b4af903461b9f1666c219cdfeb2bb5e0cd7cd6486a32a6d",
+            16,
+        )
+        .unwrap();
+        let x2 = x1.clone();
+        // y2 = -y1 in Fr
+        let y2 = U256::from_str_radix(
+            "0x24b83e5b5404c77f1d054cb33b65b94730bf50c369bf0f2f2f48beb251d9d2da",
+            16,
+        )
+        .unwrap();
+        let (x, y) = ecadd_inner((x1, y1), (x2, y2)).unwrap();
+
+        // Expected:
+        let expected_x = U256::zero();
+        let expected_y = U256::zero();
+
+        // Validation:
+        assert_eq!(x, expected_x, "x coordinates are not equal");
+        assert_eq!(y, expected_y, "y coordinates are not equal");
+    }
+
+    /// Tests the correctness of the `ecadd_inner` function when given
+    /// two points at infinity
+    #[test]
+    fn test_ecadd_inner_point_at_infinity_2() {
+        use super::*;
+
+        // Got:
+        let zero = U256::zero();
+        let (x, y) = ecadd_inner((zero, zero), (zero, zero)).unwrap();
+
+        // Expected:
+        let expected_x = U256::zero();
+        let expected_y = U256::zero();
+
+        // Validation:
+        assert_eq!(x, expected_x, "x coordinates are not equal");
+        assert_eq!(y, expected_y, "y coordinates are not equal");
+    }
+
     /// Tests the correctness of the `ecadd_inner` function for a specified point
     /// taken from https://www.evm.codes/precompiled#0x06
     #[test]
