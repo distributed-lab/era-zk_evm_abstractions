@@ -14,6 +14,10 @@ pub const MEMORY_READS_PER_CYCLE: usize = 3;
 // NOTE: We need to specify the result of the multiplication and the status of the operation
 pub const MEMORY_WRITES_PER_CYCLE: usize = 3;
 
+/// The order of the group of points on the BN254 curve.
+pub const EC_GROUP_ORDER: &str =
+    "0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001";
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ECMulRoundWitness {
     pub new_request: LogQuery,
@@ -124,7 +128,7 @@ impl<const B: bool> Precompile for ECMulPrecompile<B> {
         // Performing multiplication
         let point_multiplied = ecmul_inner((x1_value, y1_value), s_value);
 
-        if let Ok(point) = point_multiplied {
+        if let Ok((x, y)) = point_multiplied {
             let mut write_location = MemoryLocation {
                 memory_type: MemoryType::Heap, // we default for some value, here it's not that important
                 page: MemoryPage(params.memory_page_to_write),
@@ -142,11 +146,6 @@ impl<const B: bool> Precompile for ECMulPrecompile<B> {
             };
             let ok_or_err_query =
                 memory.execute_partial_query(monotonic_cycle_counter, ok_or_err_query);
-
-            // Converting resultant (x, y) into U256 format
-            let (x, y) = point.into_xy_unchecked();
-            let x = U256::from_str(format!("{}", x.into_repr()).as_str()).unwrap();
-            let y = U256::from_str(format!("{}", y.into_repr()).as_str()).unwrap();
 
             // Writing resultant x coordinate
             write_location.index.0 += 1;
@@ -244,17 +243,48 @@ impl<const B: bool> Precompile for ECMulPrecompile<B> {
     }
 }
 
+/// This function converts a [`G1Affine`] point into a tuple of two [`U256`].
+/// 
+/// If the point is zero, the function will return `(0,0)` compared to the
+/// `from_xy_checked` method implementation which returns `(0,1)`.
+pub fn point_to_u256_tuple(point: G1Affine) -> (U256, U256) {
+    if point.is_zero() {
+        return (U256::zero(), U256::zero());
+    }
+
+    let (x, y) = point.into_xy_unchecked();
+    let x = U256::from_str(format!("{}", x.into_repr()).as_str()).unwrap();
+    let y = U256::from_str(format!("{}", y.into_repr()).as_str()).unwrap();
+    (x, y)
+}
+
 /// This function multiplies the point (x1,y1) by the scalar s on the BN254 curve.
-/// It returns the result as a G1Affine point.
+/// It returns the result as a G1Affine point, represented by two U256.
 ///
-/// If the points are not on the curve or coordinates are not valid field elements,
-/// the function will return an error.
-pub fn ecmul_inner((x1, y1): (U256, U256), s: U256) -> Result<G1Affine> {
+/// If the points are not on the curve, the function will return an error.
+pub fn ecmul_inner((x1, y1): (U256, U256), s: U256) -> Result<(U256, U256)> {
     // Converting coordinates to the finite field format
     // and validating that the conversion is successful
     let x1_field = Fq::from_str(x1.to_string().as_str()).ok_or(Error::msg("invalid x1"))?;
     let y1_field = Fq::from_str(y1.to_string().as_str()).ok_or(Error::msg("invalid y1"))?;
-    let s_field = Fr::from_str(s.to_string().as_str()).ok_or(Error::msg("invalid s"))?;
+
+    let u256_to_field = |u: U256| -> Fr {
+        // If the given uint256 is less than the order of the group r, we do not touch it.
+        // In rare cases where this scalar is indeed less than r, we subtract
+        // the order of the group from the scalar until it is less than r.
+        let group_order = U256::from_str(EC_GROUP_ORDER).unwrap();
+        let mut u = u.clone();
+
+        // NOTE: Since 2**256 / r is approximately 5.29, we need max 6 subtractions.
+        // This still better than a division operation.
+        while u >= group_order {
+            u -= group_order;
+        }
+
+        Fr::from_str(u.to_string().as_str()).unwrap()
+    };
+
+    let s_field = u256_to_field(s);
 
     // If one of the points is zero, then both coordinates are zero,
     // which aligns with the from_xy_checked method implementation.
@@ -262,7 +292,8 @@ pub fn ecmul_inner((x1, y1): (U256, U256), s: U256) -> Result<G1Affine> {
     let point_1 = G1Affine::from_xy_checked(x1_field, y1_field)?;
 
     let multiplied = point_1.mul(s_field).into_affine();
-    Ok(multiplied)
+    let u256_tuple = point_to_u256_tuple(multiplied);
+    Ok(u256_tuple)
 }
 
 pub fn ecmul_function<M: Memory, const B: bool>(
@@ -301,19 +332,21 @@ pub mod tests {
         )
         .unwrap();
 
-        let result = ecmul_inner((x1, y1), s).unwrap();
+        let (x, y) = ecmul_inner((x1, y1), s).unwrap();
 
-        let expected_x = Fq::from_str(
+        let expected_x = U256::from_str_radix(
             "9941674825074992183128808489717167636392653540258056893654639521381088261704",
+            10
         )
         .unwrap();
-        let expected_y = Fq::from_str(
+        let expected_y = U256::from_str_radix(
             "8986289197266457569457494475222656986225227492679168701241837087965910154278",
+            10
         )
         .unwrap();
-        let expected_result = G1Affine::from_xy_checked(expected_x, expected_y).unwrap();
 
-        assert_eq!(result, expected_result);
+        assert_eq!(x, expected_x);
+        assert_eq!(y, expected_y);
     }
 
     /// Tests the correctness of the `ecmul_inner` function for a specified point
@@ -326,19 +359,43 @@ pub mod tests {
         let y1 = U256::from_str_radix("2", 10).unwrap();
         let s = U256::from_str_radix("2", 10).unwrap();
 
-        let result = ecmul_inner((x1, y1), s).unwrap();
+        let (x, y) = ecmul_inner((x1, y1), s).unwrap();
 
-        let expected_x = Fq::from_str(
+        let expected_x = U256::from_str_radix(
             "1368015179489954701390400359078579693043519447331113978918064868415326638035",
+            10
         )
         .unwrap();
-        let expected_y = Fq::from_str(
+        let expected_y = U256::from_str_radix(
             "9918110051302171585080402603319702774565515993150576347155970296011118125764",
+            10
         )
         .unwrap();
-        let expected_result = G1Affine::from_xy_checked(expected_x, expected_y).unwrap();
 
-        assert_eq!(result, expected_result);
+        assert_eq!(x, expected_x);
+        assert_eq!(y, expected_y);
+    }
+
+    /// Tests the correctness of the `ecmul_inner` function for a specified point
+    /// taken from https://www.evm.codes/precompiled#0x07 when the scalar
+    /// provided equals the group order. We expect to get the point at infinity.
+    #[test]
+    fn test_ecmul_inner_correctness_order_overflow_1() {
+        use super::*;
+
+        // Generator point
+        let x1 = U256::from_str_radix("1", 10).unwrap();
+        let y1 = U256::from_str_radix("2", 10).unwrap();
+        // Scalar is the group order, thus the result should be the point at infinity
+        let s = U256::from_str_radix(EC_GROUP_ORDER, 16).unwrap();
+
+        let (x, y) = ecmul_inner((x1, y1), s).unwrap();
+
+        let expected_x = U256::from_str_radix("0", 10).unwrap();
+        let expected_y = U256::from_str_radix("0", 10).unwrap();
+
+        assert_eq!(x, expected_x);
+        assert_eq!(y, expected_y);
     }
 
     /// Tests that the function does not allow to multiply by an invalid point.
