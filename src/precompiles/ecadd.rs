@@ -1,11 +1,11 @@
-use std::str::FromStr;
-
 use anyhow::{Error, Result};
 use zkevm_opcode_defs::bn254::bn256::{Fq, G1Affine};
 use zkevm_opcode_defs::bn254::ff::PrimeField;
 use zkevm_opcode_defs::bn254::{CurveAffine, CurveProjective};
 use zkevm_opcode_defs::ethereum_types::U256;
 pub use zkevm_opcode_defs::sha2::Digest;
+
+use crate::utils::bn254::{point_to_u256_tuple, ECPointCoordinates};
 
 use super::*;
 
@@ -141,7 +141,7 @@ impl<const B: bool> Precompile for ECAddPrecompile<B> {
         // Performing addition
         let points_sum = ecadd_inner((x1_value, y1_value), (x2_value, y2_value));
 
-        if let Ok(sum) = points_sum {
+        if let Ok((x, y)) = points_sum {
             let mut write_location = MemoryLocation {
                 memory_type: MemoryType::Heap, // we default for some value, here it's not that important
                 page: MemoryPage(params.memory_page_to_write),
@@ -159,11 +159,6 @@ impl<const B: bool> Precompile for ECAddPrecompile<B> {
             };
             let ok_or_err_query =
                 memory.execute_partial_query(monotonic_cycle_counter, ok_or_err_query);
-
-            // Converting resultant (x, y) into U256 format
-            let (x, y) = sum.into_xy_unchecked();
-            let x = U256::from_str(format!("{}", x.into_repr()).as_str()).unwrap();
-            let y = U256::from_str(format!("{}", y.into_repr()).as_str()).unwrap();
 
             // Writing resultant x coordinate
             write_location.index.0 += 1;
@@ -264,7 +259,7 @@ impl<const B: bool> Precompile for ECAddPrecompile<B> {
 ///
 /// If the points are not on the curve or coordinates are not valid field elements,
 /// the function will return an error.
-pub fn ecadd_inner((x1, y1): (U256, U256), (x2, y2): (U256, U256)) -> Result<G1Affine> {
+pub fn ecadd_inner((x1, y1): ECPointCoordinates, (x2, y2): ECPointCoordinates) -> Result<ECPointCoordinates> {
     // Converting coordinates to the finite field format
     // and validating that the conversion is successful
     let x1_field = Fq::from_str(x1.to_string().as_str()).ok_or(Error::msg("invalid x1"))?;
@@ -282,7 +277,8 @@ pub fn ecadd_inner((x1, y1): (U256, U256), (x2, y2): (U256, U256)) -> Result<G1A
     point_1_projective.add_assign_mixed(&point_2);
 
     let point_1 = point_1_projective.into_affine();
-    Ok(point_1)
+    let coordinates = point_to_u256_tuple(point_1);
+    Ok(coordinates)
 }
 
 pub fn ecadd_function<M: Memory, const B: bool>(
@@ -305,6 +301,7 @@ pub mod tests {
     fn test_ecadd_inner_correctness() {
         use super::*;
 
+        // Got:
         let x1 = U256::from_str_radix(
             "0x1148f79e53544582d22e5071480ae679d0b9df89d69e881f611e8381384ed1ad",
             16,
@@ -325,20 +322,23 @@ pub mod tests {
             16,
         )
         .unwrap();
+        let (x, y) = ecadd_inner((x1, y1), (x2, y2)).unwrap();
 
-        let result = ecadd_inner((x1, y1), (x2, y2)).unwrap();
-
-        let expected_x = Fq::from_str(
+        // Expected:
+        let expected_x = U256::from_str_radix(
             "16722044054529980026630802318818607593549086552476606668453035265973506741708",
+            10
         )
         .unwrap();
-        let expected_y = Fq::from_str(
+        let expected_y = U256::from_str_radix(
             "5777135421494458653665242593020841953920930780504228016288089286576416057645",
+            10
         )
         .unwrap();
-        let expected_result = G1Affine::from_xy_checked(expected_x, expected_y).unwrap();
 
-        assert_eq!(result, expected_result);
+        // Validation:
+        assert_eq!(x, expected_x, "x coordinates are not equal");
+        assert_eq!(y, expected_y, "y coordinates are not equal");
     }
 
     /// Tests the correctness of the `ecadd_inner` function for a specified point
@@ -347,24 +347,28 @@ pub mod tests {
     fn test_ecadd_inner_correctness_evm_codes() {
         use super::*;
 
+        // Got:
         let x1 = U256::from_str_radix("1", 10).unwrap();
         let y1 = U256::from_str_radix("2", 10).unwrap();
         let x2 = U256::from_str_radix("1", 10).unwrap();
         let y2 = U256::from_str_radix("2", 10).unwrap();
+        let (x, y) = ecadd_inner((x1, y1), (x2, y2)).unwrap();
 
-        let result = ecadd_inner((x1, y1), (x2, y2)).unwrap();
-
-        let expected_x = Fq::from_str(
+        // Expected:
+        let expected_x = U256::from_str_radix(
             "1368015179489954701390400359078579693043519447331113978918064868415326638035",
+            10
         )
         .unwrap();
-        let expected_y = Fq::from_str(
+        let expected_y = U256::from_str_radix(
             "9918110051302171585080402603319702774565515993150576347155970296011118125764",
+            10
         )
         .unwrap();
-        let expected_result = G1Affine::from_xy_checked(expected_x, expected_y).unwrap();
 
-        assert_eq!(result, expected_result);
+        // Validation:
+        assert_eq!(x, expected_x, "x coordinates are not equal");
+        assert_eq!(y, expected_y, "y coordinates are not equal");
     }
 
     /// Tests that the function does not allow point (x1, y1) that does not lie on the curve.
@@ -387,6 +391,7 @@ pub mod tests {
         )
         .unwrap();
 
+        // This should panic:
         let _ = ecadd_inner((x1, y1), (x2, y2)).unwrap();
     }
 
@@ -411,6 +416,7 @@ pub mod tests {
         let x2 = U256::from_str_radix("1", 16).unwrap();
         let y2 = U256::from_str_radix("10", 16).unwrap();
 
+        // This should panic:
         let _ = ecadd_inner((x1, y1), (x2, y2)).unwrap();
     }
 }

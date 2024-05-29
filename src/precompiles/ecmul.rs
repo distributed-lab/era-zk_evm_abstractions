@@ -7,6 +7,8 @@ use zkevm_opcode_defs::bn254::{CurveAffine, CurveProjective};
 use zkevm_opcode_defs::ethereum_types::U256;
 pub use zkevm_opcode_defs::sha2::Digest;
 
+use crate::utils::bn254::{point_to_u256_tuple, ECPointCoordinates};
+
 use super::*;
 
 // NOTE: We need x1, y1, and s: two coordinates of the point and the scalar
@@ -243,26 +245,11 @@ impl<const B: bool> Precompile for ECMulPrecompile<B> {
     }
 }
 
-/// This function converts a [`G1Affine`] point into a tuple of two [`U256`].
-/// 
-/// If the point is zero, the function will return `(0,0)` compared to the
-/// `from_xy_checked` method implementation which returns `(0,1)`.
-pub fn point_to_u256_tuple(point: G1Affine) -> (U256, U256) {
-    if point.is_zero() {
-        return (U256::zero(), U256::zero());
-    }
-
-    let (x, y) = point.into_xy_unchecked();
-    let x = U256::from_str(format!("{}", x.into_repr()).as_str()).unwrap();
-    let y = U256::from_str(format!("{}", y.into_repr()).as_str()).unwrap();
-    (x, y)
-}
-
 /// This function multiplies the point (x1,y1) by the scalar s on the BN254 curve.
 /// It returns the result as a G1Affine point, represented by two U256.
 ///
 /// If the points are not on the curve, the function will return an error.
-pub fn ecmul_inner((x1, y1): (U256, U256), s: U256) -> Result<(U256, U256)> {
+pub fn ecmul_inner((x1, y1): ECPointCoordinates, s: U256) -> Result<ECPointCoordinates> {
     // Converting coordinates to the finite field format
     // and validating that the conversion is successful
     let x1_field = Fq::from_str(x1.to_string().as_str()).ok_or(Error::msg("invalid x1"))?;
@@ -316,6 +303,7 @@ pub mod tests {
     fn test_ecmul_inner_correctness() {
         use super::*;
 
+        // Got:
         let x1 = U256::from_str_radix(
             "0x1148f79e53544582d22e5071480ae679d0b9df89d69e881f611e8381384ed1ad",
             16,
@@ -331,22 +319,23 @@ pub mod tests {
             16,
         )
         .unwrap();
-
         let (x, y) = ecmul_inner((x1, y1), s).unwrap();
 
+        // Expected:
         let expected_x = U256::from_str_radix(
             "9941674825074992183128808489717167636392653540258056893654639521381088261704",
-            10
+            10,
         )
         .unwrap();
         let expected_y = U256::from_str_radix(
             "8986289197266457569457494475222656986225227492679168701241837087965910154278",
-            10
+            10,
         )
         .unwrap();
 
-        assert_eq!(x, expected_x);
-        assert_eq!(y, expected_y);
+        // Validation:
+        assert_eq!(x, expected_x, "x coordinate is incorrect");
+        assert_eq!(y, expected_y, "y coordinate is incorrect");
     }
 
     /// Tests the correctness of the `ecmul_inner` function for a specified point
@@ -355,25 +344,27 @@ pub mod tests {
     fn test_ecmul_inner_correctness_evm_codes() {
         use super::*;
 
+        // Got:
         let x1 = U256::from_str_radix("1", 10).unwrap();
         let y1 = U256::from_str_radix("2", 10).unwrap();
         let s = U256::from_str_radix("2", 10).unwrap();
-
         let (x, y) = ecmul_inner((x1, y1), s).unwrap();
 
+        // Expected:
         let expected_x = U256::from_str_radix(
             "1368015179489954701390400359078579693043519447331113978918064868415326638035",
-            10
+            10,
         )
         .unwrap();
         let expected_y = U256::from_str_radix(
             "9918110051302171585080402603319702774565515993150576347155970296011118125764",
-            10
+            10,
         )
         .unwrap();
 
-        assert_eq!(x, expected_x);
-        assert_eq!(y, expected_y);
+        // Validation:
+        assert_eq!(x, expected_x, "x coordinate is incorrect");
+        assert_eq!(y, expected_y, "y coordinate is incorrect");
     }
 
     /// Tests the correctness of the `ecmul_inner` function for a specified point
@@ -383,19 +374,68 @@ pub mod tests {
     fn test_ecmul_inner_correctness_order_overflow_1() {
         use super::*;
 
-        // Generator point
+        // Got:
+        // Generator point, scalar is a group order
         let x1 = U256::from_str_radix("1", 10).unwrap();
         let y1 = U256::from_str_radix("2", 10).unwrap();
-        // Scalar is the group order, thus the result should be the point at infinity
         let s = U256::from_str_radix(EC_GROUP_ORDER, 16).unwrap();
-
         let (x, y) = ecmul_inner((x1, y1), s).unwrap();
 
+        // Expected: 
+        // NOTE: Scalar is the group order, thus the result should be the point at infinity
         let expected_x = U256::from_str_radix("0", 10).unwrap();
         let expected_y = U256::from_str_radix("0", 10).unwrap();
 
-        assert_eq!(x, expected_x);
-        assert_eq!(y, expected_y);
+        assert_eq!(x, expected_x, "x coordinate is incorrect");
+        assert_eq!(y, expected_y, "y coordinate is incorrect");
+    }
+
+    /// Tests the correctness of the `ecmul_inner` function for a specified point
+    /// taken from https://www.evm.codes/precompiled#0x07 when the scalar
+    /// provided equals the 3*(group order). We expect to get the point at infinity.
+    /// Since 3*(group order) does not overflow u256, this is a valid test.
+    #[test]
+    fn test_ecmul_inner_correctness_order_overflow_2() {
+        use super::*;
+
+        // Got:
+        // Generator point, scalar is 3*(group order)
+        let x1 = U256::from_str_radix("1", 10).unwrap();
+        let y1 = U256::from_str_radix("2", 10).unwrap();
+        let s = U256::from_str_radix("0x912ceb58a394e07d28f0d12384840917789bb8d96d2c51b3cba5e0bbd0000003", 16).unwrap();
+        let (x, y) = ecmul_inner((x1, y1), s).unwrap();
+
+        // Expected:
+        // NOTE: Scalar is 3*(group order), thus the result should be the point at infinity
+        let expected_x = U256::from_str_radix("0", 10).unwrap();
+        let expected_y = U256::from_str_radix("0", 10).unwrap();
+
+        assert_eq!(x, expected_x, "x coordinate is incorrect");
+        assert_eq!(y, expected_y, "y coordinate is incorrect");
+    }
+
+    /// Tests the correctness of the `ecmul_inner` function for a specified point
+    /// taken from https://www.evm.codes/precompiled#0x07 when the scalar
+    /// provided equals the 5*(group order)+1. We expect to get the inputted point.
+    /// Since 5*(group order)+1 does not overflow u256, this is a valid test.
+    #[test]
+    fn test_ecmul_inner_correctness_order_overflow_3() {
+        use super::*;
+
+        // Got:
+        // Generator point, scalar is 5*(group order)+1
+        let x1 = U256::from_str_radix("1", 10).unwrap();
+        let y1 = U256::from_str_radix("2", 10).unwrap();
+        let s = U256::from_str_radix("0xf1f5883e65f820d099915c908786b9d1c903896a609f32d65369cbe3b0000006", 16).unwrap();
+        let (x, y) = ecmul_inner((x1, y1), s).unwrap();
+
+        // Expected:
+        // NOTE: Scalar is 5*(group order)+1, thus the result should be (x1, y1)
+        let expected_x = x1.clone();
+        let expected_y = y1.clone();
+
+        assert_eq!(x, expected_x, "x coordinate is incorrect");
+        assert_eq!(y, expected_y, "y coordinate is incorrect");
     }
 
     /// Tests that the function does not allow to multiply by an invalid point.
@@ -413,6 +453,7 @@ pub mod tests {
         )
         .unwrap();
 
+        // This should panic
         let _ = ecmul_inner((x1, y1), s).unwrap();
     }
 }
