@@ -259,7 +259,10 @@ impl<const B: bool> Precompile for ECAddPrecompile<B> {
 ///
 /// If the points are not on the curve or coordinates are not valid field elements,
 /// the function will return an error.
-pub fn ecadd_inner((x1, y1): ECPointCoordinates, (x2, y2): ECPointCoordinates) -> Result<ECPointCoordinates> {
+pub fn ecadd_inner(
+    (x1, y1): ECPointCoordinates,
+    (x2, y2): ECPointCoordinates,
+) -> Result<ECPointCoordinates> {
     // Converting coordinates to the finite field format
     // and validating that the conversion is successful
     let x1_field = Fq::from_str(x1.to_string().as_str()).ok_or(Error::msg("invalid x1"))?;
@@ -327,12 +330,12 @@ pub mod tests {
         // Expected:
         let expected_x = U256::from_str_radix(
             "16722044054529980026630802318818607593549086552476606668453035265973506741708",
-            10
+            10,
         )
         .unwrap();
         let expected_y = U256::from_str_radix(
             "5777135421494458653665242593020841953920930780504228016288089286576416057645",
-            10
+            10,
         )
         .unwrap();
 
@@ -411,12 +414,12 @@ pub mod tests {
         // Expected:
         let expected_x = U256::from_str_radix(
             "1368015179489954701390400359078579693043519447331113978918064868415326638035",
-            10
+            10,
         )
         .unwrap();
         let expected_y = U256::from_str_radix(
             "9918110051302171585080402603319702774565515993150576347155970296011118125764",
-            10
+            10,
         )
         .unwrap();
 

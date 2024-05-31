@@ -381,7 +381,7 @@ pub mod tests {
         let s = U256::from_str_radix(EC_GROUP_ORDER, 16).unwrap();
         let (x, y) = ecmul_inner((x1, y1), s).unwrap();
 
-        // Expected: 
+        // Expected:
         // NOTE: Scalar is the group order, thus the result should be the point at infinity
         let expected_x = U256::from_str_radix("0", 10).unwrap();
         let expected_y = U256::from_str_radix("0", 10).unwrap();
@@ -402,7 +402,11 @@ pub mod tests {
         // Generator point, scalar is 3*(group order)
         let x1 = U256::from_str_radix("1", 10).unwrap();
         let y1 = U256::from_str_radix("2", 10).unwrap();
-        let s = U256::from_str_radix("0x912ceb58a394e07d28f0d12384840917789bb8d96d2c51b3cba5e0bbd0000003", 16).unwrap();
+        let s = U256::from_str_radix(
+            "0x912ceb58a394e07d28f0d12384840917789bb8d96d2c51b3cba5e0bbd0000003",
+            16,
+        )
+        .unwrap();
         let (x, y) = ecmul_inner((x1, y1), s).unwrap();
 
         // Expected:
@@ -426,7 +430,11 @@ pub mod tests {
         // Generator point, scalar is 5*(group order)+1
         let x1 = U256::from_str_radix("1", 10).unwrap();
         let y1 = U256::from_str_radix("2", 10).unwrap();
-        let s = U256::from_str_radix("0xf1f5883e65f820d099915c908786b9d1c903896a609f32d65369cbe3b0000006", 16).unwrap();
+        let s = U256::from_str_radix(
+            "0xf1f5883e65f820d099915c908786b9d1c903896a609f32d65369cbe3b0000006",
+            16,
+        )
+        .unwrap();
         let (x, y) = ecmul_inner((x1, y1), s).unwrap();
 
         // Expected:

@@ -3,7 +3,7 @@
 use std::str::FromStr;
 
 use zkevm_opcode_defs::{
-    bn254::{bn256::G1Affine, CurveAffine, ff::PrimeField},
+    bn254::{bn256::G1Affine, ff::PrimeField, CurveAffine},
     ethereum_types::U256,
 };
 
@@ -27,7 +27,7 @@ pub fn point_to_u256_tuple(point: G1Affine) -> ECPointCoordinates {
 #[cfg(test)]
 pub mod test {
     /// Verifies that the `point_to_u256_tuple` function returns the correct
-    /// values for a point at infinity, that is (0, 0) according to 
+    /// values for a point at infinity, that is (0, 0) according to
     /// evm codes spec.
     #[test]
     fn point_at_infinity_to_u256_tuple() {
